@@ -41,7 +41,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         .single();
 
       if (!run) {
-        controller.enqueue(sse({ type: "done", finalStatus: "error: could not create run" }));
+        controller.enqueue(sse({ event: "done", finalStatus: "error: could not create run" }));
         controller.close();
         return;
       }
@@ -54,12 +54,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
           definition: workflow.definition,
           triggerPayload: payload,
           onStepUpdate: (update) => {
-            controller.enqueue(sse({ type: "step", ...update }));
+            controller.enqueue(sse({ event: "step", ...update }));
           },
         });
-        controller.enqueue(sse({ type: "done", finalStatus: result.finalStatus }));
+        controller.enqueue(sse({ event: "done", finalStatus: result.finalStatus }));
       } catch (e: any) {
-        controller.enqueue(sse({ type: "done", finalStatus: `error: ${e.message}` }));
+        controller.enqueue(sse({ event: "done", finalStatus: `error: ${e.message}` }));
       } finally {
         controller.close();
       }
