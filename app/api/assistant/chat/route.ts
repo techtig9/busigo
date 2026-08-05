@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { PLAN_CREDITS, PLAN_PRICE_USD, planLabel } from "@/lib/plans";
 import { NextRequest } from "next/server";
@@ -6,12 +5,6 @@ import { NextRequest } from "next/server";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-// The in-app assistant is grounded in the signed-in user's REAL account data — their plan,
-// credit usage, workflow list, and recent run failures — gathered fresh on every request and
-// placed in the system prompt. This is what makes it "know your workflows": real context
-// injection, not a separately fine-tuned model. It's read-only and advisory by design — it
-// can explain, recommend, and point the user at the right screen, but it never modifies a
-// workflow or triggers a run on the user's behalf.
 async function buildAccountContext(userId: string) {
   const supabase = createServerSupabase();
 
@@ -72,6 +65,13 @@ themselves in the dashboard (e.g. "open Workflows > [name] and add a Filter step
 
 Keep answers short and concrete — a few sentences or a short list, not an essay. No preamble.`;
 
+function toGeminiContents(messages: { role: "user" | "assistant"; content: string }[]) {
+  return messages.map((m) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }));
+}
+
 export async function POST(request: NextRequest) {
   const supabase = createServerSupabase();
   const {
@@ -91,30 +91,59 @@ export async function POST(request: NextRequest) {
   }
 
   const context = await buildAccountContext(user.id);
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
       try {
-        const claudeStream = anthropic.messages.stream({
-          model: "claude-sonnet-5",
-          max_tokens: 600,
-          system: `${SYSTEM_PROMPT}\n\n${context}`,
-          messages: messages.slice(-12).map((m) => ({ role: m.role, content: m.content })),
-        });
+        const geminiResponse = await fetch(
+          "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse",
+          {
+            method: "POST",
+            headers: {
+              "x-goog-api-key": process.env.GOOGLE_AI_API_KEY ?? "",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: `${SYSTEM_PROMPT}\n\n${context}` }] },
+              contents: toGeminiContents(messages.slice(-12)),
+              generationConfig: { maxOutputTokens: 600 },
+            }),
+          }
+        );
 
-        claudeStream.on("text", (text) => {
-          controller.enqueue(encoder.encode(text));
-        });
-        claudeStream.on("error", (err) => {
-          controller.enqueue(encoder.encode("\n\n(Sorry — something went wrong reaching the assistant.)"));
-          console.error("assistant stream error", err);
-        });
-        await claudeStream.finalMessage();
+        if (!geminiResponse.ok || !geminiResponse.body) {
+          throw new Error(`Gemini API failed: ${geminiResponse.status}`);
+        }
+
+        const reader = geminiResponse.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const jsonStr = line.slice(6).trim();
+            if (!jsonStr) continue;
+            try {
+              const parsed = JSON.parse(jsonStr);
+              const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (text) controller.enqueue(encoder.encode(text));
+            } catch {
+              // Partial/malformed chunk — skip it rather than crash the whole stream.
+            }
+          }
+        }
       } catch (e) {
         console.error("assistant chat error", e);
-        controller.enqueue(encoder.encode("Sorry — something went wrong reaching the assistant."));
+        controller.enqueue(encoder.encode("\n\n(Sorry — something went wrong reaching the assistant.)"));
       } finally {
         controller.close();
       }
