@@ -109,7 +109,7 @@ export function PricingClient() {
           <p className="font-bold text-ink">Enterprise</p>
           <p className="mt-2 text-3xl font-bold text-ink">Custom</p>
           <p className="mt-2 text-sm text-slate">Unlimited workflows, SSO, dedicated support &amp; SLA</p>
-          <a
+          
             href="mailto:techtig9@gmail.com?subject=busigo%20Enterprise"
             className="mt-4 block rounded border border-hairline px-3 py-2 text-center text-sm font-semibold text-ink transition-colors hover:border-signal"
           >
