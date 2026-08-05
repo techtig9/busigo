@@ -2,7 +2,7 @@
 
 import { createServerSupabase } from "@/lib/supabase/server";
 import { canUseFeature, PLAN_LIMITS } from "@/lib/plans";
-import type { StepDefinition, TriggerType } from "@/types/database";
+import type { StepDefinition, TriggerType, Plan } from "@/types/database";
 import { nextRunAfter } from "@/lib/engine/cron";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -47,9 +47,6 @@ export async function createWorkflowAction(formData: FormData) {
 
   if (error || !workflow) throw new Error(error?.message || "Could not create workflow.");
 
-  // Deliberately does NOT call redirect() here: the caller (NewWorkflowForm) awaits this
-  // inside a try/catch, and redirect()'s internal NEXT_REDIRECT signal would be caught there
-  // as a normal error instead of triggering navigation — same fix as in lib/actions/auth.ts.
   return workflow.id as string;
 }
 
@@ -58,7 +55,7 @@ export async function saveDefinitionAction(workflowId: string, definition: StepD
 
   const { data: sub } = await supabase.from("subscriptions").select("plan").eq("user_id", user.id).single();
   const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single();
-  const limits = PLAN_LIMITS[(sub?.plan as any) || "free"];
+  const limits = PLAN_LIMITS[(sub?.plan as Plan) || "free"];
 
   if (profile?.role !== "admin") {
     if (definition.length > limits.maxStepsPerWorkflow) {
@@ -145,7 +142,6 @@ export async function publishWorkflowAction(workflowId: string) {
     throw new Error("Add at least one step before publishing.");
   }
 
-  // Publishing always snapshots a version too, per Phase 1.3.
   await supabase.from("workflow_versions").insert({ workflow_id: workflowId, definition: workflow.definition });
 
   const updates: Record<string, any> = { status: "published" };
@@ -219,7 +215,6 @@ export async function duplicateWorkflowAction(workflowId: string) {
 
 export async function regenerateWebhookTokenAction(workflowId: string) {
   const { supabase, user } = await requireUser();
-  // A fresh random token — rotating this makes the old /api/hook/[token] URL 404 immediately.
   const newToken = crypto.randomUUID();
 
   const { error } = await supabase
