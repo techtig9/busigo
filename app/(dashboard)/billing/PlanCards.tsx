@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Badge } from "@/components/ui/Badge";
-import { PLAN_CREDITS, PLAN_PRICE_USD, ANNUAL_DISCOUNT_PCT, annualMonthlyPrice, planLabel } from "@/lib/plans";
+import { PLAN_CREDITS, PLAN_PRICE_USD, ANNUAL_DISCOUNT_PCT, annualMonthlyPrice, planLabel } from "@/lib/pricing";
 import { CheckoutButton } from "./CheckoutButton";
 import type { Plan } from "@/types/database";
 
