@@ -2,19 +2,13 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { PLAN_CREDITS, PLAN_PRICE_USD, CREDIT_TOPUPS, planLabel } from "@/lib/plans";
+import { PLAN_CREDITS, CREDIT_TOPUPS, planLabel } from "@/lib/plans";
 import { formatDate } from "@/lib/utils";
-import { CheckoutButton } from "./CheckoutButton";
+import { PlanCards } from "./PlanCards";
 import { BuyCreditsButton } from "./BuyCreditsButton";
 import type { Plan } from "@/types/database";
 
 export const dynamic = "force-dynamic";
-
-const UPGRADE_PLANS: { id: "starter" | "growth" | "pro"; label: string }[] = [
-  { id: "starter", label: "Upgrade to Starter" },
-  { id: "growth", label: "Upgrade to Growth" },
-  { id: "pro", label: "Upgrade to Pro" },
-];
 
 export default async function BillingPage() {
   const supabase = createServerSupabase();
@@ -62,28 +56,7 @@ export default async function BillingPage() {
 
       <Card>
         <h2 className="mb-3 font-bold text-ink">Plans</h2>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {UPGRADE_PLANS.map((p) => (
-            <div
-              key={p.id}
-              className="rounded border border-hairline p-4 text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-signal hover:shadow-md"
-            >
-              <p className="font-semibold text-ink">{planLabel(p.id)}</p>
-              <p className="mt-1 text-2xl font-bold text-ink">
-                ${PLAN_PRICE_USD[p.id]}
-                <span className="text-sm font-normal text-slate">/mo</span>
-              </p>
-              <p className="mt-1 text-xs text-slate">{PLAN_CREDITS[p.id].toLocaleString()} credits/mo</p>
-              <div className="mt-3">
-                {plan === p.id ? (
-                  <Badge tone="signal">Current plan</Badge>
-                ) : (
-                  <CheckoutButton plan={p.id} userId={user.id} label={p.label} />
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+        <PlanCards currentPlan={plan} userId={user.id} />
 
         <div className="mt-4 flex items-center justify-between rounded border border-dashed border-hairline p-4">
           <div>
@@ -134,4 +107,4 @@ export default async function BillingPage() {
       </Card>
     </div>
   );
-}
+      }
