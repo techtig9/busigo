@@ -1,5 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { PLAN_CREDITS, PLAN_PRICE_USD, planLabel } from "@/lib/plans";
+import type { Plan } from "@/types/database";
 import { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ async function buildAccountContext(userId: string) {
       .limit(20),
   ]);
 
-  const plan = (sub?.plan as any) || "free";
+  const plan = (sub?.plan as Plan) || "free";
   const creditsTotal = PLAN_CREDITS[plan] ?? 0;
   const creditsRemaining = sub?.credits_remaining ?? 0;
 
