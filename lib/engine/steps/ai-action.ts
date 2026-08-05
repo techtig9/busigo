@@ -1,12 +1,6 @@
 import type { StepHandler } from "../types";
 import { resolveString } from "../merge-fields";
 
-// Hard Constraint 10: trigger payloads and prior step outputs are untrusted input. A user's
-// AI Action prompt gets merged with this data before being sent to the model — an injection
-// surface where attacker-controlled webhook/form content could try to override the user's
-// actual instruction. Merged data is always wrapped in an explicit <data> block, and the
-// model is told that content inside it is information to process, never instructions to follow.
-
 type AiMode = "summarize" | "classify" | "extract" | "generate";
 
 function buildPrompt(mode: AiMode, instruction: string, input: string, categories?: string[]): string {
@@ -34,9 +28,6 @@ function buildPrompt(mode: AiMode, instruction: string, input: string, categorie
   }
 }
 
-// Swapped from Anthropic to Gemini (plain REST call, no SDK dependency — same pattern
-// used across the other Techtig products) to reuse the existing GOOGLE_AI_API_KEY
-// instead of paying for a separate Anthropic key.
 async function callGemini(prompt: string): Promise<string> {
   const response = await fetch(
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
