@@ -2,7 +2,12 @@ import { Resend } from "resend";
 import type { StepHandler } from "../types";
 import { resolveConfig } from "../merge-fields";
 
-const SENDING_DOMAIN = "alerts@busigo.app"; // single fixed sending domain — see Hard Constraint (no per-user SMTP today)
+// TESTING: onboarding@resend.dev needs no domain verification, but Resend will only
+// deliver mail sent from it to the email address your Resend account itself is signed
+// up with — every "to" address routes there regardless of what a workflow step sets.
+// Once you own and verify a real domain, swap this back to your own address
+// (e.g. "alerts@yourdomain.com") to send to real recipients.
+const SENDING_DOMAIN = "onboarding@resend.dev"; // was: "alerts@busigo.app" — see Hard Constraint (no per-user SMTP today)
 
 export const sendEmailStep: StepHandler = async ({ step, ctx }) => {
   const config = resolveConfig(step.config, ctx.data) as {
