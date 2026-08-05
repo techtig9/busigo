@@ -1,9 +1,8 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { StepHandler } from "../types";
 import { resolveString } from "../merge-fields";
 
 // Hard Constraint 10: trigger payloads and prior step outputs are untrusted input. A user's
-// AI Action prompt gets merged with this data before being sent to Claude — an injection
+// AI Action prompt gets merged with this data before being sent to the model — an injection
 // surface where attacker-controlled webhook/form content could try to override the user's
 // actual instruction. Merged data is always wrapped in an explicit <data> block, and the
 // model is told that content inside it is information to process, never instructions to follow.
@@ -35,6 +34,27 @@ function buildPrompt(mode: AiMode, instruction: string, input: string, categorie
   }
 }
 
+// Swapped from Anthropic to Gemini (plain REST call, no SDK dependency — same pattern
+// used across the other Techtig products) to reuse the existing GOOGLE_AI_API_KEY
+// instead of paying for a separate Anthropic key.
+async function callGemini(prompt: string): Promise<string> {
+  const response = await fetch(
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+    {
+      method: "POST",
+      headers: { "x-goog-api-key": process.env.GOOGLE_AI_API_KEY ?? "", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 1024 },
+      }),
+    }
+  );
+  if (!response.ok) throw new Error(`Gemini API failed: ${response.status}`);
+  const body: { candidates?: { content?: { parts?: { text?: string }[] } }[] } = await response.json();
+  const parts = body.candidates?.[0]?.content?.parts ?? [];
+  return parts.map((p) => p.text ?? "").join("");
+}
+
 export const aiActionStep: StepHandler = async ({ step, ctx }) => {
   const config = step.config as {
     mode: AiMode;
@@ -47,17 +67,8 @@ export const aiActionStep: StepHandler = async ({ step, ctx }) => {
   const resolvedInstruction = resolveString(config.instruction || "", ctx.data);
   const prompt = buildPrompt(config.mode, resolvedInstruction, resolvedInput, config.categories);
 
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
   try {
-    const message = await anthropic.messages.create({
-      model: "claude-sonnet-5",
-      max_tokens: 1024,
-      messages: [{ role: "user", content: prompt }],
-    });
-
-    const textBlock = message.content.find((b) => b.type === "text");
-    const output = textBlock && "text" in textBlock ? textBlock.text.trim() : "";
+    const output = (await callGemini(prompt)).trim();
 
     if (!output) {
       return { status: "failed", output: null, error: "AI Action returned an empty response." };
