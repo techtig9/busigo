@@ -12,7 +12,7 @@ import {
   LAUNCH_DISCOUNT_PCT,
   annualMonthlyPrice,
   planLabel,
-} from "@/lib/plans";
+} from "@/lib/pricing";
 import type { Plan } from "@/types/database";
 
 const DISPLAY_PLANS: Plan[] = ["free", "starter", "growth", "pro"];
